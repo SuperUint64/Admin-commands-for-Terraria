@@ -10,6 +10,8 @@ Il2Cpp.perform(() =>
     const WorldGen = terrariaAssembly.image.class("Terraria.WorldGen");
     
     const sendMessage = MainClass.methods.find(m => m.name === "NewText" && m.parameterCount === 5);
+    const SlopingCollision = Player.method("SlopingCollision");
+    const Update = Player.method("Update");
     const NewNPC = NPC.method("NewNPC");
     const getMyPlayer = MainClass.method("get_myPlayer");
     const startSnowMoon = MainClass.method("startSnowMoon");
@@ -27,6 +29,7 @@ Il2Cpp.perform(() =>
     const PickTile = Player.method("PickTile");
     let isMiningArea = false;
     let superPick = false;
+    let globalNoClip = false;
     let globalRadius = null;
     
     const invasionList =
@@ -626,8 +629,30 @@ Il2Cpp.perform(() =>
                 case ".help":
                 {
                     sendMessage.invoke(Il2Cpp.string(`[HELP] List of available commands:`), 255, 255, 0, false);
-                    sendMessage.invoke(Il2Cpp.string(`.godmode, .ghost, .give, .hp, .effect, .mana, .tp, .superpick, .summon, .time, .clearinv, .difficulty, .invasion, .hardmode, .events`), 255, 255, 0, false);
+                    sendMessage.invoke(Il2Cpp.string(`.godmode, .ghost, .give, .hp, .effect, .mana, .tp, .superpick, .summon, .time, .clearinv, .difficulty, .invasion, .hardmode, .events, .noclip`), 255, 255, 0, false);
                     break;
+                }
+                
+                case ".noclip":
+                {
+                    if (parts.length != 1)
+                    {
+                        sendMessage.invoke(Il2Cpp.string(`[NOCLIP]: Error. Command does not support arguments.`), 255, 0, 0, false);
+                        break;
+                    }
+                    
+                    if (!globalNoClip)
+                    {
+                        globalNoClip = true;
+                        sendMessage.invoke(Il2Cpp.string(`[NOCLIP] NoClip: ON.`), 0, 255, 0, false);
+                        break;
+                    }
+                    else
+                    {
+                        globalNoClip = false;
+                        sendMessage.invoke(Il2Cpp.string(`[NOCLIP] NoClip: OFF.`), 0, 255, 0, false);
+                        break;
+                    }
                 }
 
                 default:
@@ -677,6 +702,37 @@ Il2Cpp.perform(() =>
             }
 
             isMiningArea = false;
+        }
+    };
+    
+    SlopingCollision.implementation = function (a, b)
+    {
+        if (globalNoClip) return;
+        this.method("SlopingCollision").invoke(a, b);
+    };
+    
+    Update.implementation = function (i)
+    {
+        if (i != getMyPlayer.invoke() || !globalNoClip)
+        {
+            this.method("Update").invoke(i);
+        }
+        else
+        {
+           const position = this.field("position").value;
+           const velocity = this.field("velocity").value;
+           const cachedGrav = this.field("gravity").value;
+           const mySpeed = 12;
+           
+           velocity.field("X").value = 0;
+           velocity.field("Y").value = 0;
+           velocity.field("Y").value -= cachedGrav;
+           
+           if (this.field("controlLeft").value === true) position.field("X").value -= mySpeed;
+           if (this.field("controlRight").value === true) position.field("X").value += mySpeed;
+           if (this.field("controlUp").value === true) position.field("Y").value -= mySpeed;
+           if (this.field("controlDown").value === true) position.field("Y").value += mySpeed;
+           this.method("Update").invoke(i);
         }
     };
 });
